@@ -1,0 +1,38 @@
+{% if stylesheet %}
+<style>
+{{ stylesheet }}
+</style>
+{% endif %}
+{% if table.title or table.subtitle %}
+<div class="richframe-heading">
+  {% if table.title %}<div class="richframe-title">{{ table.title }}</div>{% endif %}
+  {% if table.subtitle %}<div class="richframe-subtitle">{{ table.subtitle }}</div>{% endif %}
+</div>
+{% endif %}
+<table class="{{ table.class_attr }}"{% if table.style_attr %} style="{{ table.style_attr }}"{% endif %}>
+{% if table.caption %}
+  <caption>{{ table.caption }}</caption>
+{% endif %}
+{% if table.header_rows %}
+  <thead>
+  {% for row in table.header_rows %}
+    <tr class="{{ row.class_attr }}"{% if row.style_attr %} style="{{ row.style_attr }}"{% endif %}>
+    {% for cell in row.cells %}
+      {% set tag = cell.tag %}
+      <{{ tag }}{% if cell.id_attr %} id="{{ cell.id_attr }}"{% endif %}{% if cell.scope_attr %} scope="{{ cell.scope_attr }}"{% endif %} class="{{ cell.class_attr }}"{% if cell.colspan != 1 %} colspan="{{ cell.colspan }}"{% endif %}{% if cell.rowspan != 1 %} rowspan="{{ cell.rowspan }}"{% endif %}{% if cell.style_attr %} style="{{ cell.style_attr }}"{% endif %}>{{ cell.text }}</{{ tag }}>
+    {% endfor %}
+    </tr>
+  {% endfor %}
+  </thead>
+{% endif %}
+  <tbody>
+  {% for row in table.body_rows %}
+    <tr class="{{ row.class_attr }}"{% if row.style_attr %} style="{{ row.style_attr }}"{% endif %}>
+    {% for cell in row.cells %}
+      {% set tag = cell.tag %}
+      <{{ tag }}{% if cell.id_attr %} id="{{ cell.id_attr }}"{% endif %}{% if cell.scope_attr %} scope="{{ cell.scope_attr }}"{% endif %}{% if cell.headers_attr %} headers="{{ cell.headers_attr }}"{% endif %} class="{{ cell.class_attr }}"{% if cell.colspan != 1 %} colspan="{{ cell.colspan }}"{% endif %}{% if cell.rowspan != 1 %} rowspan="{{ cell.rowspan }}"{% endif %}{% if cell.style_attr %} style="{{ cell.style_attr }}"{% endif %}>{{ cell.text }}</{{ tag }}>
+    {% endfor %}
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
