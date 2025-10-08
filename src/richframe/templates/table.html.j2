@@ -6,9 +6,10 @@
 {% if table.title or table.subtitle %}
 <div class="richframe-heading">
   {% if table.title %}<div class="richframe-title">{{ table.title }}</div>{% endif %}
-  {% if table.subtitle %}<div class="richframe-subtitle">{{ table.subtitle }}</div>{% endif %}
+{% if table.subtitle %}<div class="richframe-subtitle">{{ table.subtitle }}</div>{% endif %}
 </div>
 {% endif %}
+<div class="richframe-container"{% if container_style %} style="{{ container_style }}"{% endif %}>
 <table class="{{ table.class_attr }}"{% if table.style_attr %} style="{{ table.style_attr }}"{% endif %}>
 {% if table.caption %}
   <caption>{{ table.caption }}</caption>
@@ -36,3 +37,4 @@
   {% endfor %}
   </tbody>
 </table>
+</div>

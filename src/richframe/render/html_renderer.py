@@ -13,6 +13,36 @@ from ..style import StyleRegistry
 
 __all__ = ["HTMLRenderer"]
 
+_BASE_STYLES = """\
+.richframe-container {
+  position: relative;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.richframe-table {
+  width: min(100%, max-content);
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.richframe-table--sticky-header thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+.richframe-cell--sticky {
+  box-shadow: 1px 0 0 rgba(17, 24, 39, 0.08);
+}
+.richframe-row--zebra:nth-child(even) {
+  background-color: inherit;
+}
+"""
+
+_CONTAINER_STYLE = (
+    "max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; position: relative;"
+)
+_DEFAULT_STICKY_WIDTH = 120.0
+
 
 @dataclass(slots=True)
 class RenderedCell:
@@ -61,11 +91,19 @@ class HTMLRenderer:
     def render(self, table: Table) -> str:
         registry = StyleRegistry()
         rendered_table = self._materialize_table(table, registry)
-        stylesheet = None if self._inline_styles else registry.stylesheet()
+        stylesheet = None if self._inline_styles else self._compose_stylesheet(registry)
         return self._template.render(
             table=rendered_table,
+            container_style=_CONTAINER_STYLE,
             stylesheet=stylesheet,
         )
+
+    def _compose_stylesheet(self, registry: StyleRegistry) -> str:
+        rules = [_BASE_STYLES.strip()]
+        dynamic = registry.stylesheet()
+        if dynamic:
+            rules.append(dynamic)
+        return "\n".join(rule for rule in rules if rule)
 
     def _materialize_table(
         self,
@@ -185,7 +223,7 @@ class HTMLRenderer:
                 sticky_offset = sticky_columns[cell.column_id]
                 layout_style = _merge_inline_styles(
                     layout_style,
-                    f"position: sticky; left: {sticky_offset}; z-index: 2; background: inherit",
+                    f"position: sticky; left: {sticky_offset}; z-index: 2; background: inherit; box-shadow: 1px 0 0 rgba(17, 24, 39, 0.08)",
                 )
         cell_class_attr = _compose_classes("richframe-cell", base_class, cell_style_class, sticky_class)
         cell_style_attr = _style_attribute(cell.style, inline=self._inline_styles)
@@ -236,6 +274,7 @@ class HTMLRenderer:
             style_parts: list[str] = []
             if config.width:
                 style_parts.append(f"width: {config.width}")
+                style_parts.append(f"min-width: {config.width}")
             if config.align:
                 style_parts.append(f"text-align: {config.align}")
             if config.sticky:
@@ -244,7 +283,8 @@ class HTMLRenderer:
                 if config.width:
                     sticky_left += _parse_width_px(config.width)
                 else:
-                    sticky_left += 120.0
+                    sticky_left += _DEFAULT_STICKY_WIDTH
+                    style_parts.append(f"min-width: {_DEFAULT_STICKY_WIDTH:g}px")
             column_styles[column_id] = "; ".join(style_parts) if style_parts else None
         return column_styles, sticky_offsets
 

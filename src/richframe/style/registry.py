@@ -24,6 +24,7 @@ class StyleRegistry:
     def __init__(self, *, prefix: str = "rf") -> None:
         self._prefix = prefix
         self._lookup: Dict[BaseStyle, str] = {}
+        self._class_lookup: Dict[str, BaseStyle] = {}
         self._order: List[BaseStyle] = []
 
     def register(self, style: BaseStyle | None) -> str | None:
@@ -34,6 +35,7 @@ class StyleRegistry:
             return existing
         class_name = self._generate_class_name(style)
         self._lookup[style] = class_name
+        self._class_lookup[class_name] = style
         self._order.append(style)
         return class_name
 
@@ -49,5 +51,18 @@ class StyleRegistry:
         return "\n".join(lines)
 
     def _generate_class_name(self, style: BaseStyle) -> str:
-        digest = hashlib.sha1(style.css_text().encode("utf-8")).hexdigest()[:8]
-        return f"{self._prefix}-{digest}"
+        css = style.css_text().encode("utf-8")
+        digest = hashlib.sha1(css).hexdigest()
+        suffix_length = 6
+        attempt = 0
+        while True:
+            suffix = digest[:suffix_length]
+            candidate = f"{self._prefix}-{suffix}"
+            if attempt:
+                candidate = f"{candidate}-{attempt}"
+            existing = self._class_lookup.get(candidate)
+            if existing is None or existing == style:
+                return candidate
+            attempt += 1
+            if suffix_length < len(digest):
+                suffix_length = min(len(digest), suffix_length + 2)
