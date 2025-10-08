@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import Dict, Iterable
+from typing import Dict, Iterable, Mapping, Type, TypeVar
 
 from ..core.model import Cell, Row, Table
-from .model import CellStyle, RowStyle, TableStyle
+from .model import BaseStyle, CellStyle, RowStyle, TableStyle
 
-__all__ = ["Theme", "get_theme", "list_themes", "resolve_theme"]
+__all__ = ["Theme", "get_theme", "list_themes", "resolve_theme", "compose_theme", "register_theme"]
+
+_Style = TypeVar("_Style", bound=BaseStyle)
 
 
 @dataclass(frozen=True, slots=True)
@@ -147,3 +149,48 @@ def resolve_theme(theme: str | Theme | None) -> Theme | None:
     if isinstance(theme, str):
         return get_theme(theme)
     raise TypeError("Theme must be provided as a string name or Theme instance")
+
+
+def compose_theme(
+    base: str | Theme | None,
+    *,
+    name: str,
+    table_style: TableStyle | Mapping[str, str] | None = None,
+    header_row_style: RowStyle | Mapping[str, str] | None = None,
+    header_cell_style: CellStyle | Mapping[str, str] | None = None,
+    body_row_style: RowStyle | Mapping[str, str] | None = None,
+    body_cell_style: CellStyle | Mapping[str, str] | None = None,
+) -> Theme:
+    """Create a derived theme by overlaying style overrides onto a base theme."""
+
+    base_theme = resolve_theme(base)
+    if base_theme is None:
+        base_theme = Theme(name="__base__")
+    return Theme(
+        name=name,
+        table_style=_merge_style(base_theme.table_style, table_style, TableStyle),
+        header_row_style=_merge_style(base_theme.header_row_style, header_row_style, RowStyle),
+        header_cell_style=_merge_style(base_theme.header_cell_style, header_cell_style, CellStyle),
+        body_row_style=_merge_style(base_theme.body_row_style, body_row_style, RowStyle),
+        body_cell_style=_merge_style(base_theme.body_cell_style, body_cell_style, CellStyle),
+    )
+
+
+def register_theme(theme: Theme) -> None:
+    """Register a theme instance so it can be resolved by name."""
+
+    _THEMES[theme.name] = theme
+
+
+def _merge_style(
+    base: _Style | None,
+    override: _Style | Mapping[str, str] | None,
+    cls: Type[_Style],
+) -> _Style | None:
+    if override is None:
+        return base
+    if isinstance(override, cls):
+        return override
+    if isinstance(override, Mapping):
+        return cls(override)
+    raise TypeError(f"Expected {cls.__name__} or mapping for theme override")

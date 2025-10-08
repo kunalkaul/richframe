@@ -7,6 +7,7 @@ import pytest
 
 from richframe import ColumnConfig, RowStyle, to_html
 from richframe.format import PercentageFormatter
+from richframe.style import compose_theme, register_theme
 
 
 def test_to_html_renders_dataframe() -> None:
@@ -14,7 +15,9 @@ def test_to_html_renders_dataframe() -> None:
 
     html = to_html(frame)
 
-    assert "<style>" not in html
+    assert "<style>" in html
+    assert ".richframe-container" in html
+    assert '<div class="richframe-container"' in html
     assert "class=\"richframe-table" in html
     assert 'scope="col"' in html
     assert '<th id="rf-h0-0"' in html
@@ -102,6 +105,33 @@ def test_to_html_supports_sticky_header_and_columns() -> None:
 
     assert "top: 0" in html  # header stickiness
     assert "position: sticky" in html and "left: 0px" in html
+    assert "min-width: 120px" in html
+
+
+def test_to_html_assigns_min_width_to_sticky_columns_without_width() -> None:
+    frame = pd.DataFrame({"A": [1], "B": [2]})
+
+    html = to_html(
+        frame,
+        sticky_header=True,
+        column_layout={"A": {"sticky": True}},
+    )
+
+    assert "min-width: 120px" in html
+
+
+def test_to_html_supports_composed_theme() -> None:
+    frame = pd.DataFrame({"A": [1]})
+    theme = compose_theme(
+        "light",
+        name="brand-test",
+        header_cell_style={"background_color": "#123456"},
+    )
+    register_theme(theme)
+
+    html = to_html(frame, theme="brand-test", inline_styles=True)
+
+    assert "#123456" in html
 
 
 def test_to_html_zebra_striping() -> None:

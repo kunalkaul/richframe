@@ -5,6 +5,16 @@
 ## Installation
 
 ```bash
+pip install richframe
+# or with uv
+uv pip install richframe
+```
+
+From source (repository root):
+
+```bash
+pip install -e .
+# or with uv
 uv pip install -e .
 ```
 
@@ -72,6 +82,14 @@ html = to_html(
 ```
 
 The renderer automatically adjusts zebra striping and sticky column offsets to maintain readable output across themes.
+
+### Layout best practices
+
+- **Wrap tables responsively:** the default `richframe-container` adds horizontal scrolling when needed; keep it in place when embedding inside cards or panes.
+- **Combine sticky headers with zebra striping:** stripes adapt to light/dark backgrounds, and inline sticky positioning prevents header bleed in emails.
+- **Assign widths to sticky columns:** provide explicit pixel widths (e.g. `ColumnConfig(width="120px", sticky=True)`) to minimise layout jitter; a 120px fallback is used when omitted.
+- **Use row predicates sparingly:** pair them with named `RowStyle` instances for reuse across tables and plugins.
+- **Derive themes instead of duplicating:** call `compose_theme("light", name="brand", header_cell_style={"background_color": "#0f172a"})` and register it once with `register_theme`.
 
 ## MultiIndex merging example
 
@@ -175,8 +193,12 @@ Plugins run after formatting and theming, letting you combine visual cues such a
 
 ```bash
 uv run pytest
+# Snapshot-only smoke
+uv run pytest -m snapshot
+# Skip performance baselines
+uv run pytest -m "not performance"
 ```
 
 ---
 
-Built with `uv`, `pandas`, and `jinja2`.
+Built with [uv](https://docs.astral.sh/uv/), [pandas](https://pandas.pydata.org/), and [jinja2](https://jinja.palletsprojects.com/en/stable/).
