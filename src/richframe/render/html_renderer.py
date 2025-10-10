@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import uuid
 from importlib import resources
-from typing import Iterable, Sequence
+from typing import Iterable, Mapping, Sequence
 
 from jinja2 import Environment, FileSystemLoader, Template, select_autoescape
 
@@ -74,6 +75,11 @@ class RenderedTable:
     layout: LayoutOptions
     title: str | None
     subtitle: str | None
+    filters: tuple[dict[str, object], ...] | None
+    sorts: tuple[dict[str, object], ...] | None
+    interactive_controls: bool
+    resizable_columns: bool
+    container_id: str
 
 
 class HTMLRenderer:
@@ -119,6 +125,11 @@ class HTMLRenderer:
         sticky_table_class = "richframe-table--sticky-header" if layout.sticky_header else None
         table_class_attr = _compose_classes("richframe-table", table_style_class, sticky_table_class)
         table_style_attr = _style_attribute(table.table_style, inline=self._inline_styles)
+        filters_meta = _metadata_sequence(table.metadata, "filters")
+        sorts_meta = _metadata_sequence(table.metadata, "sorts")
+        interactive_controls = _metadata_flag(table.metadata, "interactive_controls")
+        resizable_columns = _metadata_flag(table.metadata, "resizable_columns")
+        container_id = f"rf-{uuid.uuid4().hex}"
 
         header_rows = tuple(
             self._materialize_row(
@@ -155,6 +166,11 @@ class HTMLRenderer:
             layout=layout,
             title=table.metadata.get("title") if isinstance(table.metadata, dict) else None,
             subtitle=table.metadata.get("subtitle") if isinstance(table.metadata, dict) else None,
+            filters=filters_meta,
+            sorts=sorts_meta,
+            interactive_controls=interactive_controls,
+            resizable_columns=resizable_columns,
+            container_id=container_id,
         )
 
     def _materialize_row(
@@ -292,6 +308,35 @@ class HTMLRenderer:
 def _compose_classes(*parts: str | None) -> str:
     tokens = [part for part in parts if part]
     return " ".join(tokens)
+
+
+def _metadata_sequence(
+    metadata: Mapping[str, object] | None,
+    key: str,
+) -> tuple[dict[str, object], ...] | None:
+    if not isinstance(metadata, Mapping):
+        return None
+    value = metadata.get(key)
+    if not value:
+        return None
+    if not isinstance(value, Sequence):
+        return None
+    extracted: list[dict[str, object]] = []
+    for item in value:
+        if isinstance(item, Mapping):
+            extracted.append(dict(item))
+    return tuple(extracted) if extracted else None
+
+
+def _metadata_flag(metadata: Mapping[str, object] | None, key: str) -> bool:
+    if not isinstance(metadata, Mapping):
+        return False
+    value = metadata.get(key)
+    if isinstance(value, bool):
+        return value
+    if value in {"true", "True", "1"}:
+        return True
+    return False
 
 
 def _style_attribute(style: object, *, inline: bool) -> str | None:

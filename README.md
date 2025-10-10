@@ -34,7 +34,7 @@ sales = pd.DataFrame(
 )
 
 html = to_html(
-    sales,
+    value=sales,
     theme="light",
     caption="Quarterly Sales",
     formatters={"Units": "number", "Growth": "percent"},
@@ -49,6 +49,7 @@ Render the `html` string in a Jupyter notebook using `IPython.display.HTML(html)
 - **Theme & Style System** — Ship Minimal, Light, and Dark themes with class deduplication and an inline CSS mode for email-compatible output.
 - **Formatting Toolkit** — Apply built-in number, currency, percentage, and date formatters, optionally locale-aware via the `babel` extra.
 - **Layout Controls** — Configure widths, alignment, visibility, sticky columns, sticky headers, zebra striping, and rule-driven row styling.
+- **Interactive Controls** — Opt into client-side column filtering, ASC/DESC sorting, and drag-to-resize handles with `interactive_controls=True` and `resizable_columns=True`.
 - **Intelligent Merging** — Derive row/column spans for MultiIndex headers and indexes while preserving accessibility via `scope` and `headers` metadata.
 - **Plugin Layer** — Compose color scales, in-cell data bars, icon sets, and fluent conditional formatting through a lightweight plugin pipeline.
 
@@ -64,7 +65,7 @@ def high_growth(index: str, values: Sequence[object]) -> bool:
     return values[2] is not None and values[2] > 0.15
 
 html = to_html(
-    sales,
+    value=sales,
     theme="dark",
     title="Regional Performance",
     subtitle="FY24 Snapshot",
@@ -82,6 +83,47 @@ html = to_html(
 ```
 
 The renderer automatically adjusts zebra striping and sticky column offsets to maintain readable output across themes.
+
+### Interactive controls
+
+richframe ships optional in-browser controls so viewers can explore tables without leaving the page. Toggle them when calling `to_html()`:
+
+```python
+html = to_html(
+    value=sales,
+    interactive_controls=True,
+    resizable_columns=True,
+)
+```
+
+Each header displays a dropdown icon that opens searchable filters, ASC/DESC sort buttons, and a “Reset” action. A slim handle on the header’s right edge lets users drag to resize the column.
+
+You can embed the same experience inside a Streamlit app:
+
+```python
+import streamlit as st
+import streamlit.components.v1 as components
+import pandas as pd
+from richframe import to_html
+
+sales = pd.DataFrame(
+    {
+        "Region": ["North", "East", "South", "West"],
+        "Quarter": ["Q1", "Q1", "Q2", "Q3"],
+        "Revenue": [120000, 98000, 143000, 110000],
+    }
+)
+
+html = to_html(
+    value=sales,
+    theme="dark",
+    include_index=False,
+    interactive_controls=True,
+    resizable_columns=True,
+)
+
+components.html(html, scrolling=True, height=600, width=800)
+```
 
 ### Layout best practices
 
@@ -124,7 +166,7 @@ pivot = pd.DataFrame(
     columns=columns,
 )
 
-html = to_html(pivot, theme="minimal", sticky_header=True, zebra_striping=True)
+html = to_html(value=pivot, theme="minimal", sticky_header=True, zebra_striping=True)
 ```
 
 `richframe` merges repeated labels in both the header and index hierarchies, emits accurate `scope`/`headers` metadata, and keeps merged cells sticky when requested.
@@ -178,7 +220,7 @@ plugins = [
 ]
 
 html = to_html(
-    sales,
+    value=sales,
     theme="light",
     inline_styles=True,
     plugins=plugins,
@@ -201,4 +243,4 @@ uv run pytest -m "not performance"
 
 ---
 
-Built with [uv](https://docs.astral.sh/uv/), [pandas](https://pandas.pydata.org/), and [jinja2](https://jinja.palletsprojects.com/en/stable/).
+Built with [pandas](https://pandas.pydata.org/) and [jinja2](https://jinja.palletsprojects.com/en/stable/).

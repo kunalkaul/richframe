@@ -3,6 +3,7 @@
 /.venv
 *.DS_Store
 /test.ipynb
+/test_st.py
 **/__pycache__/
 *.py[cod]
 dist/

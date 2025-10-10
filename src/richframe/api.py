@@ -11,7 +11,13 @@ from .core.model import Table
 from .io.pandas_adapter import dataframe_to_table
 from .render.html_renderer import HTMLRenderer
 from .format import Formatter
-from .layout import ColumnConfig
+from .layout import (
+    ColumnConfig,
+    FilterConfig,
+    SortConfig,
+    coerce_filter_configs,
+    coerce_sort_configs,
+)
 from .plugins import Plugin
 from .style import RowStyle, Theme, resolve_theme
 
@@ -34,6 +40,10 @@ def to_html(
     title: str | None = None,
     subtitle: str | None = None,
     renderer: HTMLRenderer | None = None,
+    filters: Sequence[FilterConfig | Mapping[str, Any]] | None = None,
+    sorts: Sequence[SortConfig | Mapping[str, Any] | str] | None = None,
+    interactive_controls: bool = False,
+    resizable_columns: bool = False,
     plugins: Sequence[Plugin | None] | None = None,
 ) -> str:
     """Render a supported tabular structure into HTML.
@@ -88,6 +98,23 @@ def to_html(
         Optional :class:`~richframe.render.html_renderer.HTMLRenderer`
         instance. Supply this when you need to reuse a configured renderer or
         template. One will be created automatically when omitted.
+    filters:
+        Optional sequence of filter configurations applied before rendering.
+        Accepts :class:`~richframe.layout.filtering.FilterConfig` objects or
+        dictionaries containing ``key``, ``operator``, ``value``, ``axis``, and
+        optionally ``upper`` for between operations. Filters operating on the
+        index should specify ``axis="index"``.
+    sorts:
+        Optional sequence of sort configurations applied before rendering.
+        Accepts :class:`~richframe.layout.filtering.SortConfig` objects,
+        dictionaries with ``key``/``ascending``/``axis`` fields, or shorthand
+        strings like ``"-total"`` for descending order.
+    interactive_controls:
+        When ``True`` the rendered HTML includes built-in client-side filter and
+        sort widgets attached to each header cell. Defaults to ``False``.
+    resizable_columns:
+        When ``True`` the rendered HTML includes column resize handles that let
+        users adjust widths client-side. Defaults to ``False``.
     plugins:
         Optional sequence of plugin instances executed after formatting
         (pre-theme) and immediately before rendering. Use this to add color
@@ -101,6 +128,9 @@ def to_html(
         surfaces.
     """
 
+    resolved_filters = coerce_filter_configs(filters) if filters else None
+    resolved_sorts = coerce_sort_configs(sorts) if sorts else None
+
     table = _coerce_to_table(
         value,
         include_index=include_index,
@@ -113,6 +143,10 @@ def to_html(
         row_predicates=row_predicates,
         title=title,
         subtitle=subtitle,
+        filters=resolved_filters,
+        sorts=resolved_sorts,
+        interactive_controls=interactive_controls,
+        resizable_columns=resizable_columns,
     )
     table = _run_plugins(table, plugins, stage="after_format")
     resolved_theme = resolve_theme(theme)
@@ -153,18 +187,34 @@ def _coerce_to_table(
     row_predicates: Sequence[tuple[Callable[[Any, Sequence[Any]], bool], RowStyle | Mapping[str, str] | None]] | None,
     title: str | None,
     subtitle: str | None,
+    filters: Sequence[FilterConfig] | None,
+    sorts: Sequence[SortConfig] | None,
+    interactive_controls: bool,
+    resizable_columns: bool,
 ) -> Table:
     if isinstance(value, Table):
         if caption is not None and value.caption != caption:
             value = replace(value, caption=caption)
         if title is not None or subtitle is not None:
-            metadata = dict(value.metadata)
+            metadata = dict(value.metadata) if isinstance(value.metadata, dict) else {}
             if title is not None:
                 metadata["title"] = title
             if subtitle is not None:
                 metadata["subtitle"] = subtitle
+            if interactive_controls:
+                metadata["interactive_controls"] = True
+            if resizable_columns:
+                metadata["resizable_columns"] = True
             value = replace(value, metadata=metadata)
-        if any([formatters, locale, column_layout, sticky_header, zebra_striping, row_predicates]):
+        else:
+            metadata = dict(value.metadata) if isinstance(value.metadata, dict) else {}
+            if interactive_controls and not metadata.get("interactive_controls"):
+                metadata["interactive_controls"] = True
+            if resizable_columns and not metadata.get("resizable_columns"):
+                metadata["resizable_columns"] = True
+            if metadata:
+                value = replace(value, metadata=metadata)
+        if any([formatters, locale, column_layout, sticky_header, zebra_striping, row_predicates, filters, sorts]):
             raise ValueError(
                 "Formatters, layout, and predicate options are only supported for DataFrame inputs"
             )
@@ -182,5 +232,9 @@ def _coerce_to_table(
             row_predicates=row_predicates,
             title=title,
             subtitle=subtitle,
+            filters=filters,
+            sorts=sorts,
+            interactive_controls=interactive_controls,
+            resizable_columns=resizable_columns,
         )
     raise TypeError("Unsupported value passed to to_html")

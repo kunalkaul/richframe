@@ -9,7 +9,7 @@
 {% if table.subtitle %}<div class="richframe-subtitle">{{ table.subtitle }}</div>{% endif %}
 </div>
 {% endif %}
-<div class="richframe-container"{% if container_style %} style="{{ container_style }}"{% endif %}>
+<div{% if table.interactive_controls or table.resizable_columns %} id="{{ table.container_id }}"{% endif %} class="richframe-container"{% if container_style %} style="{{ container_style }}"{% endif %}{% if table.filters %} data-richframe-filters='{{ table.filters | tojson }}'{% endif %}{% if table.sorts %} data-richframe-sorts='{{ table.sorts | tojson }}'{% endif %}{% if table.interactive_controls %} data-richframe-interactive="true"{% endif %}{% if table.resizable_columns %} data-richframe-resizable="true"{% endif %}>
 <table class="{{ table.class_attr }}"{% if table.style_attr %} style="{{ table.style_attr }}"{% endif %}>
 {% if table.caption %}
   <caption>{{ table.caption }}</caption>
@@ -38,3 +38,296 @@
   </tbody>
 </table>
 </div>
+{% if table.interactive_controls %}
+<script>
+(function () {
+  var container = document.getElementById("{{ table.container_id }}");
+  if (!container || container.dataset.rfInteractiveReady) return;
+  container.dataset.rfInteractiveReady = "1";
+  var table = container.querySelector("table");
+  if (!table || !table.tHead || !table.tBodies.length) return;
+  var tbody = table.tBodies[0];
+  if (!document.getElementById("rf-interactive-style")) {
+    var style = document.createElement("style");
+    style.id = "rf-interactive-style";
+    style.textContent = [
+      ".rf-filter-icon{border:none;background:transparent;cursor:pointer;position:absolute;right:0.6em;top:50%;transform:translateY(-50%);padding:0;}",
+      ".rf-filter-box{display:inline-flex;align-items:center;justify-content:center;width:1.25em;height:1.25em;border:1px solid #d1d5db;border-radius:3px;background:#f9fafb;color:#374151;font-size:0.62rem;line-height:1;}",
+      ".rf-filter-icon:hover .rf-filter-box{background:#e5e7eb;color:#111827;}",
+      ".rf-filter-menu{display:none;min-width:200px;background:#fff;border:1px solid #d1d5db;box-shadow:0 6px 18px rgba(15,23,42,0.18);padding:10px;border-radius:6px;z-index:9999;}",
+      ".rf-sort-actions{display:flex;flex-direction:column;gap:6px;margin-bottom:6px;}",
+      ".rf-sort-buttons{display:flex;gap:6px;}",
+      ".rf-sort-buttons button{flex:1;padding:4px 6px;font-size:0.72rem;border:1px solid #d1d5db;border-radius:4px;background:#f9fafb;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:600;letter-spacing:0.02em;}",
+      ".rf-sort-buttons button:hover{background:#f3f4f6;}",
+      ".rf-divider{border:none;border-top:1px solid #e5e7eb;margin:6px 0;}",
+      ".rf-filter-search{width:100%;box-sizing:border-box;padding:4px;margin-bottom:6px;border-radius:4px;border:1px solid #d1d5db;}",
+      ".rf-filter-option{display:flex;align-items:center;gap:6px;margin:2px 0;font-size:0.85rem;}",
+      ".rf-filter-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:8px;}",
+      ".rf-filter-actions button{padding:4px 8px;font-size:0.8rem;border-radius:4px;border:1px solid #d1d5db;background:#f9fafb;cursor:pointer;}",
+      ".rf-filter-actions button:hover{background:#f3f4f6;}"
+    ].join("");
+    document.head.appendChild(style);
+  }
+
+  var headers = Array.prototype.slice.call(table.tHead.querySelectorAll("th"));
+  if (!headers.length) return;
+  headers.forEach(function (th) {
+    th.style.position = "relative";
+    th.style.paddingRight = "2em";
+  });
+  var bodyRows = Array.prototype.slice.call(table.tBodies[0].rows);
+  bodyRows.forEach(function (row, idx) {
+    row.dataset.rfOriginalIndex = idx;
+  });
+  var columnValues = headers.map(function () { return new Set(); });
+  bodyRows.forEach(function (row) {
+    Array.prototype.forEach.call(row.cells, function (cell, colIdx) {
+      if (!columnValues[colIdx]) return;
+      columnValues[colIdx].add(cell.textContent.trim());
+    });
+  });
+
+  var menu = document.createElement("div");
+  menu.className = "rf-filter-menu";
+  menu.innerHTML = '' +
+    '<div class="rf-sort-actions">' +
+    '  <strong>Sort</strong>' +
+    '  <div class="rf-sort-buttons">' +
+    '    <button type="button" data-sort="asc">ASC</button>' +
+    '    <button type="button" data-sort="desc">DESC</button>' +
+    '    <button type="button" data-sort="clear">Reset</button>' +
+    '  </div>' +
+    '</div>' +
+    '<hr class="rf-divider" />' +
+    '<input class="rf-filter-search" placeholder="Search…" />' +
+    '<div class="rf-filter-options"></div>' +
+    '<div class="rf-filter-actions">' +
+    '  <button type="button" data-action="clear">Reset Filter</button>' +
+    '  <button type="button" data-action="apply">Apply Filter</button>' +
+    '</div>';
+  document.body.appendChild(menu);
+
+  var activeColumn = null;
+
+  function positionMenu(th) {
+    var rect = th.getBoundingClientRect();
+    menu.style.position = "absolute";
+    menu.style.top = (window.scrollY + rect.bottom + 4) + "px";
+    menu.style.left = (window.scrollX + rect.left) + "px";
+  }
+
+  function populateMenu(columnIdx) {
+    var values = Array.from(columnValues[columnIdx]).sort(function (a, b) {
+      return a.localeCompare(b, undefined, { numeric: true });
+    });
+    var optionsRoot = menu.querySelector(".rf-filter-options");
+    optionsRoot.innerHTML = "";
+    values.forEach(function (value) {
+      var option = document.createElement("label");
+      option.className = "rf-filter-option";
+      option.dataset.value = value.toLowerCase();
+      option.innerHTML = '<input type="checkbox" value="' + value + '" checked />' +
+        '<span>' + (value || "(empty)") + '</span>';
+      optionsRoot.appendChild(option);
+    });
+    menu.querySelector(".rf-filter-search").value = "";
+  }
+
+  function toggleMenu(th, columnIdx) {
+    if (activeColumn === columnIdx && menu.style.display === "block") {
+      menu.style.display = "none";
+      activeColumn = null;
+      return;
+    }
+    activeColumn = columnIdx;
+    populateMenu(columnIdx);
+    positionMenu(th);
+    menu.style.display = "block";
+  }
+
+  function applyFilters() {
+    if (activeColumn === null) return;
+    var checkboxes = Array.prototype.slice.call(menu.querySelectorAll('.rf-filter-options input[type="checkbox"]'));
+    var checked = checkboxes.filter(function (input) { return input.checked; }).map(function (input) {
+      return input.value.trim();
+    });
+    var allowAll = checked.length === checkboxes.length;
+    var allowed = new Set(checked);
+    bodyRows.forEach(function (row) {
+      var cell = row.cells[activeColumn];
+      var text = cell ? cell.textContent.trim() : "";
+      row.style.display = allowAll || allowed.has(text) ? "" : "none";
+    });
+  }
+
+  function sortRows(columnIdx, direction) {
+    var collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+    var sorted = bodyRows.slice();
+    if (direction === "clear") {
+      sorted.sort(function (a, b) {
+        return Number(a.dataset.rfOriginalIndex) - Number(b.dataset.rfOriginalIndex);
+      });
+    } else {
+      sorted.sort(function (a, b) {
+        var aText = a.cells[columnIdx] ? a.cells[columnIdx].textContent.trim() : "";
+        var bText = b.cells[columnIdx] ? b.cells[columnIdx].textContent.trim() : "";
+        var result = collator.compare(aText, bText);
+        return direction === "asc" ? result : -result;
+      });
+    }
+    sorted.forEach(function (row) {
+      tbody.appendChild(row);
+    });
+    bodyRows = sorted;
+  }
+
+  headers.forEach(function (th, idx) {
+    var icon = document.createElement("button");
+    icon.type = "button";
+    icon.className = "rf-filter-icon";
+    icon.innerHTML = '<span class="rf-filter-box">▼</span>';
+    icon.addEventListener("click", function (event) {
+      event.stopPropagation();
+      toggleMenu(th, idx);
+    });
+    th.appendChild(icon);
+  });
+
+  document.addEventListener("click", function (event) {
+    if (!menu.contains(event.target)) {
+      menu.style.display = "none";
+      activeColumn = null;
+    }
+  });
+
+  menu.querySelector(".rf-filter-search").addEventListener("input", function (event) {
+    var term = event.target.value.toLowerCase();
+    Array.prototype.forEach.call(menu.querySelectorAll(".rf-filter-option"), function (option) {
+      option.style.display = option.dataset.value.indexOf(term) !== -1 ? "" : "none";
+    });
+  });
+
+  menu.querySelector('[data-action="clear"]').addEventListener("click", function () {
+    bodyRows.forEach(function (row) { row.style.display = ""; });
+    menu.style.display = "none";
+    activeColumn = null;
+  });
+
+  menu.querySelector('[data-action="apply"]').addEventListener("click", function () {
+    applyFilters();
+    menu.style.display = "none";
+  });
+
+  Array.prototype.forEach.call(menu.querySelectorAll("[data-sort]"), function (button) {
+    button.addEventListener("click", function (event) {
+      event.stopPropagation();
+      if (activeColumn === null) activeColumn = 0;
+      sortRows(activeColumn, button.dataset.sort);
+      menu.style.display = "none";
+    });
+  });
+})();
+</script>
+{% endif %}
+{% if table.resizable_columns %}
+<script>
+(function () {
+  var container = document.getElementById("{{ table.container_id }}");
+  if (!container || container.dataset.rfResizeReady) return;
+  container.dataset.rfResizeReady = "1";
+  var table = container.querySelector("table");
+  if (!table || !table.tHead || !table.tBodies.length) return;
+  if (!document.getElementById("rf-resize-style")) {
+    var style = document.createElement("style");
+    style.id = "rf-resize-style";
+    style.textContent = [
+      ".rf-resize-handle{position:absolute;top:0;right:0;width:8px;margin-right:-4px;height:100%;cursor:col-resize;}",
+      ".rf-resize-handle:hover{background:rgba(17,23,42,0.15);}",
+      ".rf-resize-active{user-select:none;}"
+    ].join("");
+    document.head.appendChild(style);
+  }
+
+  var headerRows = Array.prototype.slice.call(table.tHead.rows);
+  if (!headerRows.length) return;
+
+  var columnCells = [];
+  headerRows.forEach(function (row) {
+    var position = 0;
+    Array.prototype.forEach.call(row.cells, function (cell) {
+      var span = cell.colSpan || 1;
+      for (var i = 0; i < span; i++) {
+        var index = position + i;
+        if (!columnCells[index]) columnCells[index] = [];
+        if (columnCells[index].indexOf(cell) === -1) {
+          columnCells[index].push(cell);
+        }
+      }
+      position += span;
+    });
+  });
+
+  var lastHeaderRow = headerRows[headerRows.length - 1];
+  var columnIndex = 0;
+  Array.prototype.forEach.call(lastHeaderRow.cells, function (cell) {
+    var span = cell.colSpan || 1;
+    if (span === 1) {
+      installHandle(cell, columnIndex);
+    }
+    columnIndex += span;
+  });
+
+  function installHandle(cell, columnIndex) {
+    if (!cell.style.position) {
+      cell.style.position = "relative";
+    }
+    var handle = document.createElement("div");
+    handle.className = "rf-resize-handle";
+    cell.appendChild(handle);
+
+    handle.addEventListener("mousedown", function (event) {
+      event.preventDefault();
+      var rect = cell.getBoundingClientRect();
+      var leftEdge = rect.left;
+      container.classList.add("rf-resize-active");
+      var previousCursor = document.body.style.cursor;
+      document.body.style.cursor = "col-resize";
+
+      function onMove(moveEvent) {
+        var newRight = moveEvent.clientX;
+        var newWidth = Math.max(60, newRight - leftEdge);
+        applyWidth(columnIndex, newWidth);
+      }
+
+      function onUp() {
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+        container.classList.remove("rf-resize-active");
+        document.body.style.cursor = previousCursor || "";
+      }
+
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    });
+  }
+
+  function applyWidth(index, width) {
+    var widthPx = width + "px";
+    var uniqueHeaderCells = columnCells[index] ? Array.from(new Set(columnCells[index])) : [];
+    uniqueHeaderCells.forEach(function (cell) {
+      cell.style.width = widthPx;
+      cell.style.minWidth = widthPx;
+    });
+    Array.prototype.forEach.call(table.tBodies, function (body) {
+      Array.prototype.forEach.call(body.rows, function (row) {
+        var cell = row.cells[index];
+        if (cell) {
+          cell.style.width = widthPx;
+          cell.style.minWidth = widthPx;
+        }
+      });
+    });
+  }
+})();
+</script>
+{% endif %}

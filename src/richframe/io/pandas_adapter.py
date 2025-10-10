@@ -9,7 +9,7 @@ import pandas as pd
 from ..core.builder import TableBuilder
 from ..core.model import Table
 from ..format import Formatter, NumberFormatter, DateFormatter, resolve_formatter
-from ..layout import ColumnConfig
+from ..layout import ColumnConfig, FilterConfig, SortConfig
 from ..merge import apply_merges
 from ..style import RowStyle
 from pandas.api import types as pd_types
@@ -30,6 +30,10 @@ def dataframe_to_table(
     row_predicates: Sequence[tuple[Callable[[Any, Sequence[Any]], bool], RowStyle | Mapping[str, str] | None]] | None = None,
     title: str | None = None,
     subtitle: str | None = None,
+    filters: Sequence[FilterConfig] | None = None,
+    sorts: Sequence[SortConfig] | None = None,
+    interactive_controls: bool = False,
+    resizable_columns: bool = False,
 ) -> Table:
     """Convert a :class:`pandas.DataFrame` into a :class:`~richframe.core.model.Table`.
 
@@ -43,14 +47,28 @@ def dataframe_to_table(
         Optional table caption to propagate to the renderer.
     """
 
-    index_columns: list[str] = _build_index_columns(frame.index) if include_index else []
-    data_columns, column_levels = _build_column_levels(frame.columns)
+    working_frame = frame
+    if filters:
+        working_frame = _apply_filters(working_frame, filters)
+    if sorts:
+        working_frame = _apply_sorts(working_frame, sorts)
+
+    index_columns: list[str] = _build_index_columns(working_frame.index) if include_index else []
+    data_columns, column_levels = _build_column_levels(working_frame.columns)
     column_ids = index_columns + data_columns
     metadata: dict[str, Any] = {}
     if title is not None:
         metadata["title"] = title
     if subtitle is not None:
         metadata["subtitle"] = subtitle
+    if filters:
+        metadata["filters"] = [config.to_dict() for config in filters]
+    if sorts:
+        metadata["sorts"] = [config.to_dict() for config in sorts]
+    if interactive_controls:
+        metadata["interactive_controls"] = True
+    if resizable_columns:
+        metadata["resizable_columns"] = True
     if index_columns:
         metadata["index_columns"] = list(index_columns)
     if len(column_levels) > 1:
@@ -69,7 +87,7 @@ def dataframe_to_table(
                 continue
             resolved[str(column)] = resolve_formatter(formatter)
         builder.set_formatters(resolved)
-    _apply_automatic_formatters(builder, frame, include_index=include_index, index_columns=index_columns)
+    _apply_automatic_formatters(builder, working_frame, include_index=include_index, index_columns=index_columns)
     if column_layout:
         _apply_column_layout(builder, column_layout)
     if sticky_header or zebra_striping:
@@ -85,17 +103,143 @@ def dataframe_to_table(
         builder.add_header_row(header_row)
 
     if include_index:
-        index_levels = frame.index.nlevels if isinstance(frame.index, pd.MultiIndex) else 1
-        for row in frame.itertuples(index=True, name=None):
+        index_levels = working_frame.index.nlevels if isinstance(working_frame.index, pd.MultiIndex) else 1
+        for row in working_frame.itertuples(index=True, name=None):
             raw_index, *values = row
             index_values = [raw_index] if index_levels == 1 else list(raw_index)
             builder.add_body_row([*index_values, *values], index=raw_index)
     else:
-        for row in frame.itertuples(index=False, name=None):
+        for row in working_frame.itertuples(index=False, name=None):
             builder.add_body_row(list(row))
 
     table = builder.build()
     return apply_merges(table, index_columns=index_columns)
+
+
+def _apply_filters(frame: pd.DataFrame, filters: Sequence[FilterConfig]) -> pd.DataFrame:
+    if not filters:
+        return frame
+    mask = pd.Series(True, index=frame.index)
+    current = frame
+    for config in filters:
+        if config.axis == "column":
+            column = _resolve_column_label(current.columns, config.key)
+            series = current[column]
+        else:
+            series = _series_from_index(current, config.key)
+        column_mask = _mask_from_series(series, config)
+        mask = mask & column_mask
+    return frame.loc[mask]
+
+
+def _apply_sorts(frame: pd.DataFrame, sorts: Sequence[SortConfig]) -> pd.DataFrame:
+    if not sorts:
+        return frame
+    result = frame
+    column_sorts = [config for config in sorts if config.axis == "column"]
+    index_sorts = [config for config in sorts if config.axis == "index"]
+
+    for config in reversed(column_sorts):
+        column = _resolve_column_label(result.columns, config.key)
+        result = result.sort_values(
+            by=column,
+            ascending=config.ascending,
+            kind="mergesort",
+            na_position=config.na_position,
+        )
+
+    for config in reversed(index_sorts):
+        if isinstance(result.index, pd.MultiIndex):
+            level = _resolve_index_selector(result.index, config.key)
+            result = result.sort_index(
+                level=level,
+                ascending=config.ascending,
+                sort_remaining=False,
+                na_position=config.na_position,
+            )
+        else:
+            _validate_single_index_key(result.index, config.key)
+            result = result.sort_index(
+                ascending=config.ascending,
+                na_position=config.na_position,
+            )
+    return result
+
+
+def _resolve_column_label(columns: pd.Index, key: str):
+    if key in columns:
+        return key
+    matches = [column for column in columns if str(column) == key]
+    if len(matches) == 1:
+        return matches[0]
+    raise KeyError(f"Column '{key}' not found in DataFrame")
+
+
+def _resolve_index_selector(index: pd.MultiIndex, key: str) -> int | str:
+    names = list(index.names)
+    for level, name in enumerate(names):
+        formatted = _format_index_label(name)
+        if key in {formatted, str(name), f"level_{level}"}:
+            return name if name is not None else level
+    try:
+        numeric = int(key)
+    except (TypeError, ValueError):
+        pass
+    else:
+        if 0 <= numeric < index.nlevels:
+            return numeric
+    raise KeyError(f"Index level '{key}' not found in DataFrame index")
+
+
+def _validate_single_index_key(index: pd.Index, key: str) -> None:
+    normalized = str(key)
+    candidate_labels = {
+        _format_index_label(index.name),
+        str(index.name) if index.name is not None else "None",
+        "index",
+        "row",
+        "level_0",
+        "__index__",
+    }
+    if normalized in candidate_labels:
+        return
+    raise KeyError(f"Index key '{key}' not valid for single-level index")
+
+
+def _series_from_index(frame: pd.DataFrame, key: str) -> pd.Series:
+    index = frame.index
+    if isinstance(index, pd.MultiIndex):
+        selector = _resolve_index_selector(index, key)
+        values = index.get_level_values(selector)
+        return pd.Series(values, index=index, name=str(key))
+    _validate_single_index_key(index, key)
+    return pd.Series(index, index=index, name=str(key))
+
+
+def _mask_from_series(series: pd.Series, config: FilterConfig) -> pd.Series:
+    op = config.operator
+    value = config.value
+    if op == "contains":
+        mask = series.astype(str).str.contains(str(value), na=False)
+    elif op == "in":
+        mask = series.isin(config.value)
+    elif op == "between":
+        mask = series.between(config.value, config.upper, inclusive="both")
+    elif op == "eq":
+        mask = series.isna() if value is None else series.eq(value)
+    elif op == "ne":
+        mask = series.notna() if value is None else series.ne(value)
+    elif op == "gt":
+        mask = series.gt(value)
+    elif op == "ge":
+        mask = series.ge(value)
+    elif op == "lt":
+        mask = series.lt(value)
+    elif op == "le":
+        mask = series.le(value)
+    else:  # pragma: no cover - should be prevented by validation
+        raise ValueError(f"Unsupported operator '{config.operator}'")
+    return mask.fillna(False)
 
 
 def _build_index_columns(index: pd.Index) -> list[str]:

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import json
+import re
 from typing import Sequence
 
 import pandas as pd
 import pytest
 
-from richframe import ColumnConfig, RowStyle, to_html
+from richframe import ColumnConfig, FilterConfig, RowStyle, SortConfig, to_html
 from richframe.format import PercentageFormatter
 from richframe.style import compose_theme, register_theme
 
@@ -246,3 +248,76 @@ def test_to_html_merges_three_level_multiindex_index_rows() -> None:
     assert '<th id="rf-r0-idx0"' in html and 'rowspan="3">North' in html
     assert '<th id="rf-r0-idx1"' in html and 'rowspan="2">Austin' in html
     assert 'headers="' in html and "rf-r0-idx1" in html  # body cells inherit nested row headers
+
+
+def test_to_html_applies_column_filters() -> None:
+    frame = pd.DataFrame(
+        {
+            "Region": ["North", "South", "East"],
+            "Sales": [100, 200, 150],
+        }
+    )
+
+    html = to_html(frame, filters=[{"key": "Region", "operator": "==", "value": "South"}])
+
+    assert "200.00" in html
+    assert "100.00" not in html
+    assert "150.00" not in html
+
+
+def test_to_html_filters_by_index_level() -> None:
+    frame = pd.DataFrame(
+        {"Sales": [10, 20, 30]},
+        index=pd.Index(["Austin", "Dallas", "Houston"], name="City"),
+    )
+
+    html = to_html(
+        frame,
+        filters=[FilterConfig(key="City", operator="in", value=["Austin", "Houston"], axis="index")],
+        inline_styles=True,
+    )
+
+    assert "Austin" in html and "Houston" in html
+    assert "Dallas" not in html
+
+
+def test_to_html_applies_sorting_and_metadata_attributes() -> None:
+    frame = pd.DataFrame(
+        {
+            "Team": ["B", "A", "C"],
+            "Points": [11, 30, 22],
+        }
+    )
+
+    html = to_html(
+        frame,
+        sorts=[SortConfig(key="Points", ascending=False)],
+        filters=[{"key": "Team", "operator": "ne", "value": "C"}],
+    )
+
+    assert html.index("30.00") < html.index("11.00")
+    assert "22.00" not in html
+    filters_attr = re.search(r"data-richframe-filters='([^']+)'", html)
+    assert filters_attr is not None
+    assert json.loads(filters_attr.group(1))[0]["key"] == "Team"
+    sorts_attr = re.search(r"data-richframe-sorts='([^']+)'", html)
+    assert sorts_attr is not None
+
+
+def test_to_html_includes_interactive_controls() -> None:
+    frame = pd.DataFrame({"A": [1, 2, 3], "B": ["x", "y", "z"]})
+
+    html = to_html(frame, interactive_controls=True)
+
+    assert 'data-richframe-interactive="true"' in html
+    assert "rf-filter-menu" in html
+    assert "ASC" in html and "DESC" in html
+
+
+def test_to_html_includes_resizable_columns() -> None:
+    frame = pd.DataFrame({"A": [1, 2], "B": [3, 4]})
+
+    html = to_html(frame, resizable_columns=True)
+
+    assert 'data-richframe-resizable="true"' in html
+    assert "rf-resize-handle" in html
