@@ -1,0 +1,79 @@
+<style>
+.richframe-container {
+  position: relative;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.richframe-table {
+  width: min(100%, max-content);
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.richframe-table--sticky-header thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+.richframe-cell--sticky {
+  box-shadow: 1px 0 0 rgba(17, 24, 39, 0.08);
+}
+.richframe-row--zebra:nth-child(even) {
+  background-color: inherit;
+}
+</style>
+<div class="richframe-container" style="max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; position: relative;">
+<table class="richframe-table">
+  <thead>
+    <tr class="richframe-row richframe-row--header">
+      <th id="rf-h0-0" scope="colgroup" class="richframe-cell richframe-cell--header" colspan="2"></th>
+      <th id="rf-h0-1" scope="colgroup" class="richframe-cell richframe-cell--header" colspan="3">North</th>
+      <th id="rf-h0-2" scope="col" class="richframe-cell richframe-cell--header">South</th>
+    </tr>
+    <tr class="richframe-row richframe-row--header">
+      <th id="rf-h1-0" scope="colgroup" class="richframe-cell richframe-cell--header" colspan="2"></th>
+      <th id="rf-h1-1" scope="colgroup" class="richframe-cell richframe-cell--header" colspan="2">Retail</th>
+      <th id="rf-h1-2" scope="col" class="richframe-cell richframe-cell--header">Wholesale</th>
+      <th id="rf-h1-3" scope="col" class="richframe-cell richframe-cell--header">Retail</th>
+    </tr>
+    <tr class="richframe-row richframe-row--header">
+      <th id="rf-h2-0" scope="col" class="richframe-cell richframe-cell--header">Region</th>
+      <th id="rf-h2-1" scope="col" class="richframe-cell richframe-cell--header">City</th>
+      <th id="rf-h2-2" scope="col" class="richframe-cell richframe-cell--header">Q1</th>
+      <th id="rf-h2-3" scope="col" class="richframe-cell richframe-cell--header">Q2</th>
+      <th id="rf-h2-4" scope="colgroup" class="richframe-cell richframe-cell--header" colspan="2">Q1</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr class="richframe-row richframe-row--body">
+      <th id="rf-r0-idx0" scope="rowgroup" headers="rf-h0-0 rf-h1-0 rf-h2-0" class="richframe-cell richframe-cell--header" rowspan="3">North</th>
+      <th id="rf-r0-idx1" scope="rowgroup" headers="rf-h0-0 rf-h1-0 rf-h2-1" class="richframe-cell richframe-cell--header" rowspan="2">Austin</th>
+      <td headers="rf-h0-1 rf-h1-1 rf-h2-2 rf-r0-idx0 rf-r0-idx1" class="richframe-cell richframe-cell--body">10.00</td>
+      <td headers="rf-h0-1 rf-h1-1 rf-h2-3 rf-r0-idx0 rf-r0-idx1" class="richframe-cell richframe-cell--body">12.00</td>
+      <td headers="rf-h0-1 rf-h1-2 rf-h2-4 rf-r0-idx0 rf-r0-idx1" class="richframe-cell richframe-cell--body">8.00</td>
+      <td headers="rf-h0-2 rf-h1-3 rf-h2-4 rf-r0-idx0 rf-r0-idx1" class="richframe-cell richframe-cell--body">7.00</td>
+    </tr>
+    <tr class="richframe-row richframe-row--body richframe-row--zebra" style="background-color: rgba(0, 0, 0, 0.08)">
+      <td headers="rf-h0-1 rf-h1-1 rf-h2-2" class="richframe-cell richframe-cell--body">9.00</td>
+      <td headers="rf-h0-1 rf-h1-1 rf-h2-3" class="richframe-cell richframe-cell--body">11.00</td>
+      <td headers="rf-h0-1 rf-h1-2 rf-h2-4" class="richframe-cell richframe-cell--body">7.00</td>
+      <td headers="rf-h0-2 rf-h1-3 rf-h2-4" class="richframe-cell richframe-cell--body">6.00</td>
+    </tr>
+    <tr class="richframe-row richframe-row--body">
+      <th id="rf-r2-idx0" scope="row" headers="rf-h0-0 rf-h1-0 rf-h2-1" class="richframe-cell richframe-cell--header">Dallas</th>
+      <td headers="rf-h0-1 rf-h1-1 rf-h2-2 rf-r2-idx0" class="richframe-cell richframe-cell--body">13.00</td>
+      <td headers="rf-h0-1 rf-h1-1 rf-h2-3 rf-r2-idx0" class="richframe-cell richframe-cell--body">15.00</td>
+      <td headers="rf-h0-1 rf-h1-2 rf-h2-4 rf-r2-idx0" class="richframe-cell richframe-cell--body">9.00</td>
+      <td headers="rf-h0-2 rf-h1-3 rf-h2-4 rf-r2-idx0" class="richframe-cell richframe-cell--body">8.00</td>
+    </tr>
+    <tr class="richframe-row richframe-row--body richframe-row--zebra" style="background-color: rgba(0, 0, 0, 0.08)">
+      <th id="rf-r3-idx0" scope="row" headers="rf-h0-0 rf-h1-0 rf-h2-0" class="richframe-cell richframe-cell--header">South</th>
+      <th id="rf-r3-idx1" scope="row" headers="rf-h0-0 rf-h1-0 rf-h2-1" class="richframe-cell richframe-cell--header">Houston</th>
+      <td headers="rf-h0-1 rf-h1-1 rf-h2-2 rf-r3-idx0 rf-r3-idx1" class="richframe-cell richframe-cell--body">14.00</td>
+      <td headers="rf-h0-1 rf-h1-1 rf-h2-3 rf-r3-idx0 rf-r3-idx1" class="richframe-cell richframe-cell--body">16.00</td>
+      <td headers="rf-h0-1 rf-h1-2 rf-h2-4 rf-r3-idx0 rf-r3-idx1" class="richframe-cell richframe-cell--body">10.00</td>
+      <td headers="rf-h0-2 rf-h1-3 rf-h2-4 rf-r3-idx0 rf-r3-idx1" class="richframe-cell richframe-cell--body">9.00</td>
+    </tr>
+  </tbody>
+</table>
+</div>
