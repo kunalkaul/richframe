@@ -1,6 +1,6 @@
 [project]
 name = "richframe"
-version = "0.3.0.dev1"
+version = "0.3.0"
 description = "A library for rendering rich HTML tables from pandas DataFrames."
 readme = "README.md"
 authors = [
